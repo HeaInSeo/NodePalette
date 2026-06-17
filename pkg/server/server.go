@@ -14,14 +14,23 @@ import (
 	"github.com/HeaInSeo/NodePalette/pkg/paletteclient"
 )
 
+const promotionStatusActive = "active"
+
+// PaletteClient is the interface the Server uses to fetch certified tools.
+// It allows the server to be tested with a mock without importing the concrete
+// paletteclient.Client type.
+type PaletteClient interface {
+	ListCertifiedTools(ctx context.Context) (*paletteclient.ListCertifiedToolsResponse, error)
+}
+
 // Server is the NodePalette HTTP server.
 type Server struct {
-	client *paletteclient.Client
+	client PaletteClient
 	mux    *http.ServeMux
 }
 
 // New creates a Server backed by the given NodeVault client.
-func New(client *paletteclient.Client) *Server {
+func New(client PaletteClient) *Server {
 	s := &Server{client: client, mux: http.NewServeMux()}
 	s.mux.HandleFunc("/v1/palette/tools", s.handleListTools)
 	s.mux.HandleFunc("/v1/palette/tools/", s.handleGetTool)
@@ -73,7 +82,7 @@ func (s *Server) handleListTools(w http.ResponseWriter, r *http.Request) {
 
 	tools := make([]PaletteTool, 0, len(resp.Tools))
 	for _, t := range resp.Tools {
-		if t.PromotionStatus != "active" {
+		if t.PromotionStatus != promotionStatusActive {
 			continue
 		}
 		tools = append(tools, PaletteTool{
@@ -104,6 +113,10 @@ func (s *Server) handleGetTool(w http.ResponseWriter, r *http.Request) {
 	casHash := strings.TrimPrefix(r.URL.Path, "/v1/palette/tools/")
 	if casHash == "" {
 		http.Error(w, "missing cas_hash", http.StatusBadRequest)
+		return
+	}
+	if strings.Contains(casHash, "..") || strings.Contains(casHash, "/") {
+		http.Error(w, "invalid cas_hash", http.StatusBadRequest)
 		return
 	}
 
@@ -145,8 +158,12 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		slog.Error("failed to encode response", "err", err)
+	b, err := json.Marshal(v)
+	if err != nil {
+		slog.Error("failed to marshal response", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(b)
 }

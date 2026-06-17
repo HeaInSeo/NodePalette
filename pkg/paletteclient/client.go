@@ -20,6 +20,7 @@ const (
 	certifiedToolsPath    = "/v1/catalog/certified-tools"
 	toolsPath             = "/v1/catalog/tools"
 	defaultRequestTimeout = 10 * time.Second
+	maxResponseBodyBytes  = 1 << 20
 )
 
 // Client queries NodeVault's catalog REST API.
@@ -34,6 +35,15 @@ func New() *Client {
 	if addr == "" {
 		addr = defaultVaultAPIAddr
 	}
+	return &Client{
+		baseURL: addr,
+		http:    &http.Client{Timeout: defaultRequestTimeout},
+	}
+}
+
+// NewWithAddr creates a Client with an explicit base URL (no env var reading).
+// Useful for testing and for wiring the address at the call site.
+func NewWithAddr(addr string) *Client {
 	return &Client{
 		baseURL: addr,
 		http:    &http.Client{Timeout: defaultRequestTimeout},
@@ -106,9 +116,12 @@ func (c *Client) get(ctx context.Context, url string, out any) error {
 	if err != nil {
 		return fmt.Errorf("paletteclient: GET %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes))
+	if readErr != nil {
+		return fmt.Errorf("paletteclient: read response from %s: %w", url, readErr)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("paletteclient: GET %s: HTTP %d: %s", url, resp.StatusCode, body)
 	}

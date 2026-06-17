@@ -9,11 +9,15 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/HeaInSeo/NodePalette/pkg/paletteclient"
@@ -21,17 +25,17 @@ import (
 )
 
 func main() {
-	addr := os.Getenv("NODEPALETTE_ADDR")
-	if addr == "" {
-		addr = ":8083"
-	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	addr := listenAddr()
 
 	slog.Info("NodePalette starting",
 		"listen", addr,
 		"vault_api", vaultAPIAddr(),
 	)
 
-	client := paletteclient.New()
+	client := paletteclient.NewWithAddr(vaultAPIAddr())
 	srv := server.New(client)
 
 	httpSrv := &http.Server{
@@ -41,17 +45,34 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 	}
 
-	if err := httpSrv.ListenAndServe(); err != nil {
+	go func() {
+		<-ctx.Done()
+		stop()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("NodePalette graceful shutdown error: %v", err)
+		}
+	}()
+
+	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("NodePalette server exited: %v", err)
 	}
+	slog.Info("NodePalette stopped")
 }
 
+// listenAddr returns the address NodePalette listens on.
+// It reads NODEPALETTE_ADDR and trims whitespace; defaults to ":8083".
+func listenAddr() string {
+	addr := strings.TrimSpace(os.Getenv("NODEPALETTE_ADDR"))
+	if addr == "" {
+		addr = ":8083"
+	}
+	return addr
+}
+
+// vaultAPIAddr returns the NodeVault catalog API base URL.
+// It reads NODEVAULT_API_ADDR and strips surrounding whitespace.
 func vaultAPIAddr() string {
-	v := os.Getenv("NODEVAULT_API_ADDR")
-	return strings.Map(func(r rune) rune {
-		if r == '\n' || r == '\r' {
-			return -1
-		}
-		return r
-	}, v)
+	return strings.TrimSpace(os.Getenv("NODEVAULT_API_ADDR"))
 }
