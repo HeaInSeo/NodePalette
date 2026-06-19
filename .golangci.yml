@@ -1,0 +1,115 @@
+version: "2"
+
+run:
+  allow-parallel-runners: true
+  timeout: 10m
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errcheck
+    - errorlint
+    - gocheckcompilerdirectives
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - noctx
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - revive
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (*os.File).Close
+
+    govet:
+      enable:
+        - nilness
+        - shadow
+
+    gosec:
+      config:
+        G101:
+          pattern: "(?i)passwd|password|secret|apikey|api_key|token|credential|private.?key"
+          ignore_entropy: false
+          entropy_threshold: "80.0"
+          per_char_threshold: "3.0"
+          truncate: "32"
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - exitAfterDefer
+        - httpNoBody
+        - rangeValCopy
+        - ifElseChain
+        - whyNoLint
+
+    misspell:
+      locale: US
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+          disabled: true
+        - name: indent-error-flow
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: unused-parameter
+        - name: unreachable-code
+
+  exclusions:
+    generated: lax
+    rules:
+      - path: ".*_test\\.go$"
+        linters:
+          - errcheck
+          - gocritic
+          - gosec
+          - misspell
+          - noctx
+          - revive
+          - unparam
+    paths:
+      - vendor$
+      - third_party$
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/HeaInSeo/NodePalette
+  exclusions:
+    generated: lax
+    paths:
+      - vendor$
+      - third_party$

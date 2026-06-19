@@ -417,9 +417,8 @@ func TestHandleListTools_TotalEqualsFilteredCount(t *testing.T) {
 	}
 }
 
-// Test 13: GetTool returns the tool regardless of promotion status
-// (the single-tool endpoint returns whatever is in the catalog for that hash)
-func TestHandleGetTool_InactiveTool(t *testing.T) {
+// Test 13: Regression — GetTool hides inactive tools.
+func TestHandleGetTool_InactiveToolHidden(t *testing.T) {
 	tools := []paletteclient.CertifiedTool{
 		{CasHash: "h-inactive", ToolName: "inactive-tool", PromotionStatus: "deprecated"},
 	}
@@ -433,15 +432,23 @@ func TestHandleGetTool_InactiveTool(t *testing.T) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// The single-tool GET returns the tool regardless of status (no filtering)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for inactive tool, got %d", resp.StatusCode)
 	}
-	var tool server.PaletteTool
-	if err := json.NewDecoder(resp.Body).Decode(&tool); err != nil {
-		t.Fatalf("decode: %v", err)
+}
+
+func TestHandleHealthz_MethodNotAllowed(t *testing.T) {
+	mock := &mockPaletteClient{}
+	ts := newTestServer(mock)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/healthz", "text/plain", nil)
+	if err != nil {
+		t.Fatalf("POST /healthz: %v", err)
 	}
-	if tool.CasHash != "h-inactive" {
-		t.Errorf("CasHash: got %q, want h-inactive", tool.CasHash)
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", resp.StatusCode)
 	}
 }

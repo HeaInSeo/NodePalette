@@ -24,6 +24,8 @@ import (
 	"github.com/HeaInSeo/NodePalette/pkg/server"
 )
 
+const defaultVaultAPIAddr = "http://nodevault.nodevault-system.svc:8082"
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -74,5 +76,9 @@ func listenAddr() string {
 // vaultAPIAddr returns the NodeVault catalog API base URL.
 // It reads NODEVAULT_API_ADDR and strips surrounding whitespace.
 func vaultAPIAddr() string {
-	return strings.TrimSpace(os.Getenv("NODEVAULT_API_ADDR"))
+	addr := strings.TrimSpace(os.Getenv("NODEVAULT_API_ADDR"))
+	if addr == "" {
+		return defaultVaultAPIAddr
+	}
+	return addr
 }

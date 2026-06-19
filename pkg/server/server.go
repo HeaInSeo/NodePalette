@@ -131,7 +131,7 @@ func (s *Server) handleGetTool(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, t := range resp.Tools {
-		if t.CasHash == casHash {
+		if t.CasHash == casHash && t.PromotionStatus == promotionStatusActive {
 			writeJSON(w, PaletteTool{
 				CasHash:         t.CasHash,
 				ToolName:        t.ToolName,
@@ -152,9 +152,15 @@ func (s *Server) handleGetTool(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
+	if _, err := w.Write([]byte("ok")); err != nil {
+		slog.Warn("failed to write healthz response", "err", err)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -165,5 +171,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(b)
+	if _, err := w.Write(b); err != nil {
+		slog.Warn("failed to write JSON response", "err", err)
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -44,6 +45,10 @@ func New() *Client {
 // NewWithAddr creates a Client with an explicit base URL (no env var reading).
 // Useful for testing and for wiring the address at the call site.
 func NewWithAddr(addr string) *Client {
+	addr = strings.TrimRight(strings.TrimSpace(addr), "/")
+	if addr == "" {
+		addr = defaultVaultAPIAddr
+	}
 	return &Client{
 		baseURL: addr,
 		http:    &http.Client{Timeout: defaultRequestTimeout},

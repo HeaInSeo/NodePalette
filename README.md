@@ -75,8 +75,11 @@ go build ./...
 ### 테스트
 
 ```bash
-go test -race ./...
+make test
+make coverage-check
 ```
+
+`coverage-check`는 전체 statement coverage가 70% 미만이면 실패한다.
 
 ### 실행 (로컬 디버깅)
 
@@ -104,10 +107,46 @@ curl http://localhost:8083/v1/palette/tools
 
 | Job | 내용 |
 |-----|------|
-| `lint` | golangci-lint (zero-warning) |
+| `lint` | `.golangci.yml` 기반 golangci-lint (gosec/bodyclose/noctx 포함) |
 | `build` | go build + go vet |
-| `test` | -race -cover |
+| `test-unit` | `go test -race -covermode=atomic`, 전체 coverage 70% 미만 실패 |
+| `k8s-contract` | bori-facing K8s 데이터 플레인 매니페스트 계약 테스트 |
 | `vuln-scan` | govulncheck (continue-on-error) |
+
+---
+
+## K8s 데이터 플레인 계약
+
+NodePalette는 향후 `bori`가 배포를 오케스트레이션할 read-only 데이터 플레인 앱이다.
+이 repo의 `deploy/` 매니페스트는 직접 배포 절차가 아니라 **bori가 소비해야 할 기준 계약**이다.
+
+| 파일 | 계약 |
+|------|------|
+| `deploy/00-namespace.yaml` | `nodepalette-system` 네임스페이스 |
+| `deploy/01-nodepalette.yaml` | HTTP 8083, `/healthz` readiness/liveness, NodeVault catalog REST 주소 |
+
+운영 안전 조건:
+
+- NodePalette는 `PromotionStatus=active` 항목만 외부에 노출한다. 단건 조회도 inactive 항목은 `404`로 숨긴다.
+- 컨테이너는 `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, `capabilities.drop: [ALL]`을 유지한다.
+- Replica 기본값은 2다. 서비스는 상태를 갖지 않고 NodeVault REST를 source of truth로 사용한다.
+- 이미지 태그는 `latest`를 쓰지 않는다. bori 릴리스 파이프라인에서 명시 태그/다이제스트로 치환한다.
+- CI의 `k8s-contract` job은 bori-facing 매니페스트가 위 계약을 깨지 않는지 검사한다.
+
+로컬 품질 게이트:
+
+```bash
+make lint
+make test
+make coverage-check
+go test -v ./test/k8s/...
+```
+
+테스트 정책:
+
+- fail path: NodeVault REST 4xx/5xx, invalid JSON, broken body, context cancellation, upstream outage를 테스트한다.
+- regression: base URL 트레일링 슬래시, 기본 in-cluster NodeVault 주소, inactive tool 비노출, `/healthz` method contract를 고정한다.
+- 실제 클러스터 배포/rollout은 bori 트랙에서 담당하고, 이 repo는 bori가 소비할 앱 계약을 검증한다.
 
 ---
 

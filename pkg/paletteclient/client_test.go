@@ -191,7 +191,7 @@ func TestListCertifiedTools_InvalidJSON(t *testing.T) {
 	}
 }
 
-// Test 6: trailing slash in baseURL — no double slashes
+// Test 6: trailing slash in baseURL is trimmed — no double slashes.
 func TestNewWithAddr_TrailingSlash(t *testing.T) {
 	var gotPath string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -203,19 +203,9 @@ func TestNewWithAddr_TrailingSlash(t *testing.T) {
 
 	// NewWithAddr with trailing slash — path must not contain double slashes
 	c := paletteclient.NewWithAddr(ts.URL + "/")
-	// This will produce a double-slash URL like http://host//v1/catalog/certified-tools
-	// The test documents the current behavior: the path will have a double slash.
-	// This is a regression test to catch if behavior changes.
 	_, err := c.ListCertifiedTools(context.Background())
-	// We only care that it doesn't panic; a double-slash URL may still work on some servers.
-	// What we really want to verify is that NewWithAddr without trailing slash works correctly.
-	_ = err
-
-	// Now test without trailing slash: path must be exactly /v1/catalog/certified-tools
-	c2 := paletteclient.NewWithAddr(ts.URL)
-	_, err2 := c2.ListCertifiedTools(context.Background())
-	if err2 != nil {
-		t.Fatalf("unexpected error with clean URL: %v", err2)
+	if err != nil {
+		t.Fatalf("unexpected error with trailing slash URL: %v", err)
 	}
 	if gotPath != "/v1/catalog/certified-tools" {
 		t.Errorf("expected path /v1/catalog/certified-tools, got %q", gotPath)
@@ -320,6 +310,13 @@ func TestNew_DefaultAddr(t *testing.T) {
 	c := paletteclient.New()
 	if c == nil {
 		t.Fatal("New() returned nil")
+	}
+}
+
+func TestNewWithAddr_EmptyUsesDefault(t *testing.T) {
+	c := paletteclient.NewWithAddr("   ")
+	if c == nil {
+		t.Fatal("NewWithAddr returned nil")
 	}
 }
 

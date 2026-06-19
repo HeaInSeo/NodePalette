@@ -29,12 +29,12 @@ func TestVaultAPIAddr_StripsCarriageReturns(t *testing.T) {
 	}
 }
 
-// Test 3: vaultAPIAddr returns empty string when env not set
-func TestVaultAPIAddr_EmptyWhenNotSet(t *testing.T) {
+// Test 3: vaultAPIAddr returns the in-cluster NodeVault default when env is not set.
+func TestVaultAPIAddr_DefaultWhenNotSet(t *testing.T) {
 	t.Setenv("NODEVAULT_API_ADDR", "")
 	got := vaultAPIAddr()
-	if got != "" {
-		t.Errorf("vaultAPIAddr() = %q, want empty string", got)
+	if got != defaultVaultAPIAddr {
+		t.Errorf("vaultAPIAddr() = %q, want %q", got, defaultVaultAPIAddr)
 	}
 }
 
