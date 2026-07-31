@@ -81,50 +81,6 @@ func TestListCertifiedTools_HappyPath(t *testing.T) {
 	}
 }
 
-// Test 2: ListTools happy path
-func TestListTools_HappyPath(t *testing.T) {
-	now := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
-	want := paletteclient.ListToolsResponse{
-		Tools: []paletteclient.RegisteredTool{
-			{
-				CasHash:         "def456",
-				ToolName:        "other-tool",
-				Version:         "2.0.0",
-				StableRef:       "harbor.local/tools/other-tool:2.0.0",
-				ImageDigest:     "sha256:cafebabe",
-				ImageRef:        "harbor.local/tools/other-tool@sha256:cafebabe",
-				RegisteredAt:    now,
-				LifecycleStatus: "registered",
-			},
-		},
-	}
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/catalog/tools" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(want)
-	}))
-	defer ts.Close()
-
-	c := paletteclient.NewWithAddr(ts.URL)
-	got, err := c.ListTools(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(got.Tools) != 1 {
-		t.Fatalf("expected 1 tool, got %d", len(got.Tools))
-	}
-	g := got.Tools[0]
-	if g.CasHash != "def456" {
-		t.Errorf("CasHash: got %q, want %q", g.CasHash, "def456")
-	}
-	if g.LifecycleStatus != "registered" {
-		t.Errorf("LifecycleStatus: got %q, want %q", g.LifecycleStatus, "registered")
-	}
-}
-
 // Test 3: HTTP 500 → error returned
 func TestListCertifiedTools_500Error(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -139,23 +95,6 @@ func TestListCertifiedTools_500Error(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "HTTP 500") {
 		t.Errorf("error message should mention HTTP 500, got: %v", err)
-	}
-}
-
-// Test 3b: ListTools HTTP 404 → error returned
-func TestListTools_HTTPError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "not found", http.StatusNotFound)
-	}))
-	defer ts.Close()
-
-	c := paletteclient.NewWithAddr(ts.URL)
-	_, err := c.ListTools(context.Background())
-	if err == nil {
-		t.Fatal("expected error for 404 response, got nil")
-	}
-	if !strings.Contains(err.Error(), "HTTP 404") {
-		t.Errorf("error message should mention HTTP 404, got: %v", err)
 	}
 }
 

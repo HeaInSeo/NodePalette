@@ -327,33 +327,9 @@ func TestHandleListTools_FiltersNonActive(t *testing.T) {
 // injecting a mock that returns a value that cannot be marshalled. But the
 // server types are all known-good. Instead, we verify the contract via a
 // local helper that mimics the writeJSON logic, ensuring 500 on marshal failure.
-func TestWriteJSON_SerializationFailure(t *testing.T) {
-	// We can test this by using a custom ResponseWriter + calling the internal
-	// writeJSON indirectly. Since writeJSON is unexported in the server package,
-	// we expose it via a test-only route added to the mux. That's not feasible
-	// without modifying the source. Instead, we verify the behavior by checking
-	// that the server never produces a 200 with a partial body when given bad data.
-	//
-	// For direct coverage: we call the handler with a custom HTTP test setup
-	// that verifies the status code is 500 when json.Marshal returns an error.
-	//
-	// We achieve this by copying the writeJSON logic and testing it directly here:
-	w := httptest.NewRecorder()
-	v := map[string]any{"bad": make(chan int)}
-
-	b, err := json.Marshal(v)
-	if err != nil {
-		// Simulate writeJSON behavior on marshal error
-		w.WriteHeader(http.StatusInternalServerError)
-	} else {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(b)
-	}
-
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500 when json.Marshal fails, got %d", w.Code)
-	}
-}
+// TestWriteJSON_SerializationFailure moved to writejson_internal_test.go
+// (package server) so it exercises the real writeJSON instead of
+// reimplementing its logic here.
 
 // Test 11: GET /healthz → 200 "ok"
 func TestHandleHealthz(t *testing.T) {

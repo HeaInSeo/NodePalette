@@ -19,7 +19,6 @@ import (
 const (
 	defaultVaultAPIAddr   = "http://nodevault.nodevault-system.svc:8082"
 	certifiedToolsPath    = "/v1/catalog/certified-tools"
-	toolsPath             = "/v1/catalog/tools"
 	defaultRequestTimeout = 10 * time.Second
 	maxResponseBodyBytes  = 1 << 20
 )
@@ -75,36 +74,10 @@ type ListCertifiedToolsResponse struct {
 	Tools []CertifiedTool `json:"tools"`
 }
 
-// RegisteredTool is a single entry from NodeVault's registered tool list.
-type RegisteredTool struct {
-	CasHash         string    `json:"cas_hash"`
-	ToolName        string    `json:"tool_name"`
-	Version         string    `json:"version"`
-	StableRef       string    `json:"stable_ref"`
-	ImageDigest     string    `json:"image_digest"`
-	ImageRef        string    `json:"image_ref"`
-	RegisteredAt    time.Time `json:"registered_at"`
-	LifecycleStatus string    `json:"lifecycle_status"`
-}
-
-// ListToolsResponse is the JSON envelope from NodeVault.
-type ListToolsResponse struct {
-	Tools []RegisteredTool `json:"tools"`
-}
-
 // ListCertifiedTools returns all active certified tools from NodeVault.
 func (c *Client) ListCertifiedTools(ctx context.Context) (*ListCertifiedToolsResponse, error) {
 	var resp ListCertifiedToolsResponse
 	if err := c.get(ctx, c.baseURL+certifiedToolsPath, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
-// ListTools returns all registered tools from NodeVault.
-func (c *Client) ListTools(ctx context.Context) (*ListToolsResponse, error) {
-	var resp ListToolsResponse
-	if err := c.get(ctx, c.baseURL+toolsPath, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
