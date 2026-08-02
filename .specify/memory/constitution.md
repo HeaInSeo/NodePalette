@@ -7,17 +7,18 @@
   this prose.
 -->
 
-## Cross-repo invariants live in the Platform Spec Wiki (canonical)
+## Cross-repo invariants live in the platform canonical (NodeVault §4)
 
 Cross-repo invariants — reproducibility, `casHash`, `stableRef`, the artifact
-dual-axis (`lifecycle_phase` / `integrity_health`), the sori boundary, and
-"do not record what you did not observe" (§1.10) — are owned solely by the
-**Platform Spec Wiki `1. constitution`**. This document does not restate or fork
-them; on any conflict, the wiki §1 wins.
+dual-axis (`lifecycle_phase` / `integrity_health`), the sori boundary, and the
+image-build / ResolveRecipe rules — are owned solely by the platform canonical:
+**`github.com/HeaInSeo/NodeVault` — `docs/PLATFORM_MASTER_DESIGN.md` §4**
+(immutable architecture decisions). This document does not restate or fork
+them; on any conflict, §4 wins.
 
 Note: NodePalette **reads the NodeVault Index / catalog projection**. That read
 contract is **cross-repo** — its canonical home is the platform contract layer
-(wiki-owned), not this constitution. It is not declared or forked here.
+(platform-canonical-owned per NodeVault §4), not this constitution. It is not declared or forked here.
 
 ## Process discipline (repo-operational — owned by this repo)
 
@@ -38,7 +39,7 @@ contract is **cross-repo** — its canonical home is the platform contract layer
 - **golangci-lint** (IMPLEMENTED — `make lint`): lint gate.
 - **race tests** (IMPLEMENTED — `make test`, `go test -race`): concurrency safety;
   CI runs the same race variant.
-- **coverage** (IMPLEMENTED — `make coverage-check`): coverage threshold gate
+- **coverage** (IMPLEMENTED — `ci.yml` inline 70% gate via `go tool cover`): coverage threshold enforced in CI
   (70%).
 
 CI-only (no `make` target): **govulncheck** (vulnerability scan, `ci.yml`) and
@@ -48,7 +49,7 @@ target. NodePalette has **no gosec gate** (neither `make` nor CI).
 ## §1.10 — "do not record what you did not observe"
 
 **Status: PROPOSED (not enforced in this repo).** §1.10 is a cross-repo
-invariant owned by the wiki; NodePalette has **no deterministic rule** enforcing
+rule (not yet part of NodeVault §4); NodePalette has **no deterministic rule** enforcing
 it today. Marked PROPOSED, not IMPLEMENTED, until such a gate exists.
 
 **Version**: 1.0.0 | **Ratified**: 2026-08-02 | **Last Amended**: 2026-08-02
