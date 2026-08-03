@@ -36,9 +36,8 @@ contract is **cross-repo** — its canonical home is the platform contract layer
 
 > Derived index of THIS repo's own gates. Not canonical — SoT is the gate itself.
 
-- **golangci-lint** (IMPLEMENTED — `make lint`): lint gate.
-- **race tests** (IMPLEMENTED — `make test`, `go test -race`): concurrency safety;
-  CI runs the same race variant.
+- **golangci-lint** (IMPLEMENTED — required check "Lint" via `golangci-lint-action` with `--config=.golangci.yml`; not `make`): lint gate.
+- **race tests** (IMPLEMENTED — required check "Unit Tests" runs `go test -race -cover` inline; not `make`): concurrency safety.
 - **coverage** (IMPLEMENTED — `ci.yml` inline 70% gate via `go tool cover`): coverage threshold enforced in CI
   (70%).
 
