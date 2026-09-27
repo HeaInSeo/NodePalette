@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -25,27 +26,13 @@ func mustMarshal(t *testing.T, v any) string {
 	return string(b)
 }
 
-// Test 1: ListCertifiedTools happy path
-func TestListCertifiedTools_HappyPath(t *testing.T) {
-	now := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
-	want := paletteclient.ListCertifiedToolsResponse{
-		Tools: []paletteclient.CertifiedTool{
-			{
-				CasHash:         "abc123",
-				ToolName:        "my-tool",
-				Version:         "1.0.0",
-				StableRef:       "harbor.local/tools/my-tool:1.0.0",
-				ImageDigest:     "sha256:deadbeef",
-				ImageRef:        "harbor.local/tools/my-tool@sha256:deadbeef",
-				DisplayLabel:    "My Tool",
-				DisplayCategory: "analysis",
-				PromotionStatus: "active",
-				CertifiedAt:     now,
-				ValidationHash:  "vhash1",
-			},
-		},
-	}
+// goldenNodeVaultList is NodeVault's own GET /v1/catalog/certified-tools body, produced by
+// catalogrest.toCertifiedToolItem + writeJSON at NodeVault f45d4a11bdfffd49ebe1e91841e666e5ba61017b
+// (not hand-written, and not NodePalette's own marshal). certified_at is int64 UnixMilli.
+const goldenNodeVaultList = "testdata/nodevault_f45d4a11_certified_tools.json"
 
+func serveBytes(t *testing.T, body []byte) *httptest.Server {
+	t.Helper()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/catalog/certified-tools" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
@@ -54,31 +41,72 @@ func TestListCertifiedTools_HappyPath(t *testing.T) {
 			t.Errorf("missing Accept header")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(want)
+		_, _ = w.Write(body)
 	}))
-	defer ts.Close()
+	t.Cleanup(ts.Close)
+	return ts
+}
 
-	c := paletteclient.NewWithAddr(ts.URL)
-	got, err := c.ListCertifiedTools(context.Background())
+// Test 1 (M1/M5/M6/M9): NodeVault's real wire bytes decode; certified_at is the exact
+// millisecond instant in UTC, unknown extra fields are ignored, and the zero-time epoch
+// decodes without error.
+func TestListCertifiedTools_NodeVaultGolden(t *testing.T) {
+	body, err := os.ReadFile(goldenNodeVaultList)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if len(got.Tools) != 1 {
-		t.Fatalf("expected 1 tool, got %d", len(got.Tools))
+	ts := serveBytes(t, body)
+
+	got, err := paletteclient.NewWithAddr(ts.URL).ListCertifiedTools(context.Background())
+	if err != nil {
+		t.Fatalf("decode NodeVault golden: %v", err)
+	}
+	if len(got.Tools) != 3 {
+		t.Fatalf("expected 3 tools, got %d", len(got.Tools))
 	}
 	g := got.Tools[0]
-	if g.CasHash != "abc123" {
-		t.Errorf("CasHash: got %q, want %q", g.CasHash, "abc123")
+	want := time.Date(2026, 9, 24, 10, 15, 42, 123000000, time.UTC)
+	if !g.CertifiedAt.Equal(want) || g.CertifiedAt.Location() != time.UTC {
+		t.Errorf("CertifiedAt: got %v, want %v (UTC)", g.CertifiedAt, want)
 	}
-	if g.ToolName != "my-tool" {
-		t.Errorf("ToolName: got %q, want %q", g.ToolName, "my-tool")
+	if g.CasHash != "sha256:1111111111111111111111111111111111111111111111111111111111111111" ||
+		g.ToolName != "bwa" || g.PromotionStatus != "active" || g.ImageRef == "" || g.ValidationHash == "" {
+		t.Errorf("fields not decoded: %+v", g)
 	}
-	if g.PromotionStatus != "active" {
-		t.Errorf("PromotionStatus: got %q, want %q", g.PromotionStatus, "active")
+	if !got.Tools[1].CertifiedAt.Equal(time.Date(2026, 7, 31, 15, 0, 0, 0, time.UTC)) {
+		t.Errorf("second CertifiedAt: got %v", got.Tools[1].CertifiedAt)
 	}
-	if !g.CertifiedAt.Equal(now) {
-		t.Errorf("CertifiedAt: got %v, want %v", g.CertifiedAt, now)
+	if !got.Tools[2].CertifiedAt.Equal(time.Time{}) {
+		t.Errorf("zero epoch: got %v, want %v", got.Tools[2].CertifiedAt, time.Time{})
 	}
+}
+
+// Test 2 (M7): certified_at in any form other than int64 UnixMilli is rejected, never
+// accepted by accident — including the RFC3339 string NodePalette itself emits.
+func TestListCertifiedTools_RejectsNonUnixMilliCertifiedAt(t *testing.T) {
+	for name, value := range map[string]string{
+		"rfc3339 string": `"2026-09-24T10:15:42Z"`,
+		"fraction":       `1790244942123.5`,
+		"null":           `null`,
+		"bool":           `true`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			ts := serveBytes(t, []byte(`{"tools":[{"cas_hash":"h","promotion_status":"active","certified_at":`+value+`}]}`))
+			_, err := paletteclient.NewWithAddr(ts.URL).ListCertifiedTools(context.Background())
+			if err == nil || !strings.Contains(err.Error(), "certified_at") {
+				t.Fatalf("certified_at=%s: err = %v, want certified_at decode error", value, err)
+			}
+			if !strings.Contains(err.Error(), ts.URL) {
+				t.Errorf("error lost the upstream URL: %v", err)
+			}
+		})
+	}
+	t.Run("missing", func(t *testing.T) {
+		ts := serveBytes(t, []byte(`{"tools":[{"cas_hash":"h","promotion_status":"active"}]}`))
+		if _, err := paletteclient.NewWithAddr(ts.URL).ListCertifiedTools(context.Background()); err == nil {
+			t.Fatal("missing certified_at accepted")
+		}
+	})
 }
 
 // Test 3: HTTP 500 → error returned
