@@ -160,6 +160,21 @@ jobs:
         run: go test -v ./test/k8s/...
 
   # ──────────────────────────────────────────────────────────────────
+  # 4b. NodeVault certified_at wire drift tripwire (owner = NodeVault)
+  # ──────────────────────────────────────────────────────────────────
+  nodevault-wire-sync:
+    name: NodeVault Wire Sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Clone NodeVault (certified-tools wire owner)
+        run: git clone --depth 1 https://github.com/HeaInSeo/NodeVault ../NodeVault
+
+      - name: Verify the vendored NodeVault wire snapshot matches NodeVault main
+        run: make nodevault-wire-sync-check NODEVAULT_REPO_ROOT="${{ github.workspace }}/../NodeVault"
+
+  # ──────────────────────────────────────────────────────────────────
   # 5. 취약점 스캔 (govulncheck)
   # ──────────────────────────────────────────────────────────────────
   vuln-scan:

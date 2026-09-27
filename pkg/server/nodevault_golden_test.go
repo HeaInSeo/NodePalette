@@ -81,6 +81,68 @@ func TestNodeVaultGolden_ListTools(t *testing.T) {
 	}
 }
 
+// NodeVault owns cas_hash, stable_ref and image_digest: both palette endpoints serve them
+// exactly as NodeVault sent them for every active tool, never normalised or re-derived.
+func TestNodeVaultGolden_AuthorityFieldsPassThrough(t *testing.T) {
+	var env struct {
+		Tools []map[string]any `json:"tools"`
+	}
+	if err := json.Unmarshal(golden(t), &env); err != nil {
+		t.Fatal(err)
+	}
+	var active []map[string]any
+	for _, tool := range env.Tools {
+		if tool["promotion_status"] == "active" {
+			active = append(active, tool)
+		}
+	}
+	if len(active) == 0 {
+		t.Fatal("golden has no active tools")
+	}
+	ts := paletteOver(t, fakeNodeVault(t, http.StatusOK, golden(t)))
+	authority := []string{"cas_hash", "stable_ref", "image_digest", "promotion_status"}
+
+	resp, err := http.Get(ts.URL + "/v1/palette/tools")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list struct {
+		Tools []map[string]any `json:"tools"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&list)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Tools) != len(active) {
+		t.Fatalf("listed %d tools, golden has %d active", len(list.Tools), len(active))
+	}
+	for i, want := range active {
+		for _, key := range authority {
+			if want[key] == "" || list.Tools[i][key] != want[key] {
+				t.Errorf("list tools[%d].%s = %#v, NodeVault sent %#v", i, key, list.Tools[i][key], want[key])
+			}
+		}
+
+		casHash, _ := want["cas_hash"].(string)
+		resp, err := http.Get(ts.URL + "/v1/palette/tools/" + casHash)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var tool map[string]any
+		err = json.NewDecoder(resp.Body).Decode(&tool)
+		_ = resp.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range authority {
+			if tool[key] != want[key] {
+				t.Errorf("get %s: %s = %#v, NodeVault sent %#v", casHash, key, tool[key], want[key])
+			}
+		}
+	}
+}
+
 // M4: an active cas_hash from the NodeVault list is served with the same instant.
 func TestNodeVaultGolden_GetTool(t *testing.T) {
 	ts := paletteOver(t, fakeNodeVault(t, http.StatusOK, golden(t)))
