@@ -1,0 +1,37 @@
+type CertifiedToolItem struct {
+	CasHash            string   `json:"cas_hash"`
+	ToolName           string   `json:"tool_name"`
+	Version            string   `json:"version"`
+	StableRef          string   `json:"stable_ref"`
+	ImageDigest        string   `json:"image_digest"`
+	ImageRef           string   `json:"image_ref,omitempty"`
+	DisplayLabel       string   `json:"display_label,omitempty"`
+	DisplayDescription string   `json:"display_description,omitempty"`
+	DisplayCategory    string   `json:"display_category,omitempty"`
+	DisplayTags        []string `json:"display_tags,omitempty"`
+	PromotionStatus    string   `json:"promotion_status"`
+	CertifiedAt        int64    `json:"certified_at"`
+	ValidationHash     string   `json:"validation_hash,omitempty"`
+}
+
+type ListCertifiedToolsResponse struct {
+	Tools []CertifiedToolItem `json:"tools"`
+}
+
+func toCertifiedToolItem(e index.ToolFunctionCatalogEntry) CertifiedToolItem {
+	return CertifiedToolItem{
+		CasHash:            e.CasHash,
+		ToolName:           e.ToolName,
+		Version:            e.Version,
+		StableRef:          e.StableRef,
+		ImageDigest:        e.ImageDigest,
+		ImageRef:           e.ImageRef,
+		DisplayLabel:       e.DisplayLabel,
+		DisplayDescription: e.DisplayDescription,
+		DisplayCategory:    e.DisplayCategory,
+		DisplayTags:        e.DisplayTags,
+		PromotionStatus:    string(e.PromotionStatus),
+		CertifiedAt:        e.CertifiedAt.UnixMilli(),
+		ValidationHash:     e.ValidationHash,
+	}
+}

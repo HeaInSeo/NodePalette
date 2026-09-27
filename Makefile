@@ -1,4 +1,8 @@
-.PHONY: fmt lint lint-fix lint-config test coverage coverage-check build vet
+.PHONY: fmt lint lint-fix lint-config test coverage coverage-check build vet nodevault-wire-sync-check
+
+# Snapshot of NodeVault's certified-tools wire definitions at the NodeVault commit the
+# golden JSON was produced from (see pkg/paletteclient/testdata).
+NODEVAULT_WIRE_SNAPSHOT ?= pkg/paletteclient/testdata/nodevault_f45d4a11_catalogrest_wire.go.txt
 
 LOCALBIN ?= $(CURDIR)/bin
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
@@ -61,3 +65,9 @@ coverage-check: coverage
 		} \
 		printf("coverage %.1f%% >= %.1f%%\n", got, want) \
 	}'
+
+# Fails when NodeVault's certified-tools wire (the owner) no longer matches the
+# vendored snapshot; regenerate the golden and the snapshot from NodeVault together.
+nodevault-wire-sync-check:
+	@test -n "$(NODEVAULT_REPO_ROOT)" || { echo "ERROR: NODEVAULT_REPO_ROOT is required; set it to a NodeVault checkout (e.g. make $@ NODEVAULT_REPO_ROOT=/path/to/NodeVault)"; exit 1; }
+	bash hack/nodevault-wire-extract.sh "$(NODEVAULT_REPO_ROOT)/pkg/catalogrest/server.go" | diff -u "$(NODEVAULT_WIRE_SNAPSHOT)" -

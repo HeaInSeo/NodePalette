@@ -55,6 +55,11 @@ func NewWithAddr(addr string) *Client {
 }
 
 // CertifiedTool is a single entry from NodeVault's certified tool catalog.
+//
+// NodeVault owns the wire format: certified_at is an int64 Unix time in
+// milliseconds (catalogrest.CertifiedToolItem). It is decoded into a UTC
+// time.Time; any other form (RFC3339 string, fraction, null, missing) is
+// rejected, so the caller surfaces an upstream error instead of a wrong instant.
 type CertifiedTool struct {
 	CasHash         string    `json:"cas_hash"`
 	ToolName        string    `json:"tool_name"`
@@ -67,6 +72,27 @@ type CertifiedTool struct {
 	PromotionStatus string    `json:"promotion_status"`
 	CertifiedAt     time.Time `json:"certified_at"`
 	ValidationHash  string    `json:"validation_hash"`
+}
+
+// UnmarshalJSON decodes NodeVault's CertifiedToolItem wire format.
+func (t *CertifiedTool) UnmarshalJSON(data []byte) error {
+	type wire CertifiedTool
+	aux := struct {
+		*wire
+		CertifiedAt json.RawMessage `json:"certified_at"`
+	}{wire: (*wire)(t)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if len(aux.CertifiedAt) == 0 || string(aux.CertifiedAt) == "null" {
+		return fmt.Errorf("paletteclient: certified_at missing for %q", t.CasHash)
+	}
+	var ms int64
+	if err := json.Unmarshal(aux.CertifiedAt, &ms); err != nil {
+		return fmt.Errorf("paletteclient: certified_at for %q must be int64 Unix milliseconds: %w", t.CasHash, err)
+	}
+	t.CertifiedAt = time.UnixMilli(ms).UTC()
+	return nil
 }
 
 // ListCertifiedToolsResponse is the JSON envelope from NodeVault.
